@@ -28,18 +28,21 @@ jobs:
             theme="$1"; out="$2"
             for attempt in 1 2 3; do
               if curl -fsSL --max-time 120 \
-                "https://gh.crafter.run/svg?u=${GH_USER}&theme=${theme}" -o "${out}.tmp"; then
-                if head -c 64 "${out}.tmp" | grep -qE '<svg|<\?xml'; then
+                "https://gh.crafter.run/${GH_USER}?theme=${theme}" -o "${out}.tmp"; then
+                # Guard: it must be an SVG AND actually be this user's card, not a
+                # fallback/placeholder. This is what previously let junk get committed.
+                if head -c 64 "${out}.tmp" | grep -qE '<svg|<\?xml' \
+                   && grep -q "github.com/${GH_USER}" "${out}.tmp"; then
                   mv "${out}.tmp" "${out}"
                   echo "ok: ${out} (theme=${theme})"
                   return 0
                 fi
-                echo "attempt ${attempt}: response for theme=${theme} was not SVG"
+                echo "attempt ${attempt}: response for theme=${theme} was not a valid ${GH_USER} card"
               fi
               echo "attempt ${attempt} failed for theme=${theme}, retrying..."
               sleep 10
             done
-            echo "ERROR: could not fetch a valid SVG for theme=${theme}" >&2
+            echo "ERROR: could not fetch a valid card for theme=${theme}" >&2
             return 1
           }
           fetch dark dark_mode.svg
