@@ -1,0 +1,61 @@
+name: Refresh ASCII profile card
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-ascii-card
+  cancel-in-progress: true
+
+env:
+  GH_USER: arturo-bandini-21
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch fresh ASCII cards
+        run: |
+          fetch() {
+            theme="$1"; out="$2"
+            for attempt in 1 2 3; do
+              if curl -fsSL --max-time 120 \
+                "https://gh.crafter.run/svg?u=${GH_USER}&theme=${theme}" -o "${out}.tmp"; then
+                if head -c 64 "${out}.tmp" | grep -qE '<svg|<\?xml'; then
+                  mv "${out}.tmp" "${out}"
+                  echo "ok: ${out} (theme=${theme})"
+                  return 0
+                fi
+                echo "attempt ${attempt}: response for theme=${theme} was not SVG"
+              fi
+              echo "attempt ${attempt} failed for theme=${theme}, retrying..."
+              sleep 10
+            done
+            echo "ERROR: could not fetch a valid SVG for theme=${theme}" >&2
+            return 1
+          }
+          fetch dark dark_mode.svg
+          fetch light light_mode.svg
+
+      - name: Re-add LinkedIn to the Contact block
+        run: python3 scripts/inject_linkedin.py dark_mode.svg light_mode.svg
+
+      - name: Commit if the card changed
+        run: |
+          if git diff --quiet -- dark_mode.svg light_mode.svg; then
+            echo "No changes — profile card already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dark_mode.svg light_mode.svg
+          git commit -m "chore: refresh ASCII profile card stats"
+          git push
