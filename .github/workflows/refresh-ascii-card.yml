@@ -51,6 +51,11 @@ jobs:
       - name: Re-add LinkedIn to the Contact block
         run: python3 scripts/inject_linkedin.py dark_mode.svg light_mode.svg
 
+      - name: Replace the commit count with real contributions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/inject_contributions.py dark_mode.svg light_mode.svg
+
       - name: Commit if the card changed
         run: |
           if git diff --quiet -- dark_mode.svg light_mode.svg; then
