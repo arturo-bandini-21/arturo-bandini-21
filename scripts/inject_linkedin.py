@@ -10,6 +10,7 @@ Idempotent: does nothing if the card already contains a LinkedIn entry.
 
 import re
 import sys
+from decimal import Decimal
 
 LABEL = ". LinkedIn: "
 VALUE = " linkedin.com/in/alonso-diego-lamilla-meza"
@@ -19,7 +20,9 @@ LINE_HEIGHT = 20
 # Matches the existing GitHub contact line and captures its colors so the injected
 # LinkedIn line inherits them — works for both the dark and light themed cards.
 GITHUB_LINE = re.compile(
-    r'<text x="(?P<x>\d+)" y="(?P<y>\d+)"(?P<attrs>[^>]*)>'
+    # The upstream card uses fractional y coordinates. Do not constrain this
+    # to integers or LinkedIn disappears whenever its layout changes.
+    r'<text x="(?P<x>\d+)" y="(?P<y>[^"]+)"(?P<attrs>[^>]*)>'
     r'<tspan fill="(?P<c_label>#[0-9a-fA-F]{6})">\. GitHub: </tspan>'
     r'<tspan fill="(?P<c_leader>#[0-9a-fA-F]{6})">\.+</tspan>'
     r'<tspan fill="(?P<c_value>#[0-9a-fA-F]{6})"> github\.com/[^<]*</tspan></text>'
@@ -39,8 +42,9 @@ def inject(path: str) -> bool:
         return False
 
     leader = "." * max(1, VALUE_COLUMN - len(LABEL))
+    y = Decimal(match.group("y")) + LINE_HEIGHT
     new_line = (
-        f'\n  <text x="{match.group("x")}" y="{int(match.group("y")) + LINE_HEIGHT}"'
+        f'\n  <text x="{match.group("x")}" y="{y}"'
         f'{match.group("attrs")}>'
         f'<tspan fill="{match.group("c_label")}">{LABEL}</tspan>'
         f'<tspan fill="{match.group("c_leader")}">{leader}</tspan>'
